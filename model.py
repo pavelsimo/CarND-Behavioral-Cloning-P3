@@ -6,9 +6,26 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Lambda, Activation, Dropout, Cropping2D
-from keras.layers.convolutional import Conv2D, Convolution2D
-from keras.layers.pooling import MaxPooling2D
+from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D
+from keras.layers.convolutional import Conv2D
+
+# snippet start
+import tensorflow as tf
+import keras.backend.tensorflow_backend as KTF
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.gpu_options.per_process_gpu_memory_fraction = 0.4
+KTF.set_session(tf.Session(config=config))
+# snippet end
+
+
+def adjust(img, brightness=-50, contrast=80):
+    res = np.copy(img)
+    res = np.int16(res)
+    res = res * (contrast / 127 + 1) - contrast + brightness
+    res = np.clip(res, 0, 255)
+    res = np.uint8(res)
+    return res
 
 
 def load_sample(sample_dir):
@@ -57,6 +74,12 @@ def generator(samples, sample_dir='.', batch_size=32):
                 images.append(img_right)
                 angles.append(steering_right)
 
+                for brightness, contrast in [(-50, 80), (-50, 30), (50, 30), (-100, 30)]:
+                    for img, angle in [(img_center, steering_center), (img_left, steering_left), (img_right, steering_right)]:
+                        img_adjusted = adjust(img, brightness=brightness, contrast=contrast)
+                        images.append(img_adjusted)
+                        angles.append(angle)
+
             # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
@@ -84,7 +107,7 @@ def custom(train_samples, validation_samples, train_generator, validation_genera
     #model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator,
     # nb_val_samples=len(validation_samples), nb_epoch=2)
     model.fit_generator(train_generator, verbose=1, validation_data=validation_generator,
-                        epochs=3, steps_per_epoch=len(train_samples) / batch_size,
+                        epochs=2, steps_per_epoch=len(train_samples) / batch_size,
                         validation_steps=len(validation_samples) / batch_size)
     model.save('model.h5')
 
@@ -93,7 +116,7 @@ def main():
     sample_dir = 'data/dataset1'
     samples = load_sample(sample_dir)
     train_samples, validation_samples = train_test_split(samples, test_size=0.2)
-    batch_size = 16
+    batch_size = 32
     train_generator = generator(train_samples, batch_size=batch_size, sample_dir=sample_dir)
     validation_generator = generator(validation_samples, batch_size=batch_size, sample_dir=sample_dir)
     custom(train_samples, validation_samples, train_generator, validation_generator, batch_size=batch_size)
