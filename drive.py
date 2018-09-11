@@ -15,6 +15,14 @@ from io import BytesIO
 from keras.models import load_model
 import h5py
 from keras import __version__ as keras_version
+# snippet start
+import tensorflow as tf
+import keras.backend.tensorflow_backend as KTF
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.gpu_options.per_process_gpu_memory_fraction = 0.4 # allocate only 40% of total GPU memory to TensorFlow and hence Keras
+KTF.set_session(tf.Session(config=config))
+# snippet end
 
 sio = socketio.Server()
 app = Flask(__name__)
