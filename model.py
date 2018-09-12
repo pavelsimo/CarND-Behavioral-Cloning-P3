@@ -8,7 +8,6 @@ from sklearn.utils import shuffle
 from keras.models import Sequential
 from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D
 from keras.layers.convolutional import Conv2D
-from skimage import transform
 
 import tensorflow as tf
 import keras.backend.tensorflow_backend as KTF
@@ -19,24 +18,6 @@ def brightness(img, value=1.0):
     hsv[:, :, 2] = hsv[:, :, 2] * value
     rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
     return rgb
-
-
-def rotate(img, angle=5.0):
-    res = transform.rotate(img, angle=angle, resize=False, mode='edge')
-    res *= 255
-    return res
-
-
-def rescale(img, scale=1.0):
-    res = transform.rescale(img, scale=scale, mode='constant')
-    res = res[0:160, 0:320]
-    res *= 255
-    return res
-
-
-def to_yuv(img):
-    res = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
-    return res
 
 
 def load_sample(sample_dir):
