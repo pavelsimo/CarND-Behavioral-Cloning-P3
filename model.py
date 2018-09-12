@@ -10,14 +10,8 @@ from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D
 from keras.layers.convolutional import Conv2D
 from skimage import transform
 
-# snippet start
 import tensorflow as tf
 import keras.backend.tensorflow_backend as KTF
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-config.gpu_options.per_process_gpu_memory_fraction = 0.8
-KTF.set_session(tf.Session(config=config))
-# snippet end
 
 
 def brightness(img, value=1.0):
@@ -25,15 +19,6 @@ def brightness(img, value=1.0):
     hsv[:, :, 2] = hsv[:, :, 2] * value
     rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
     return rgb
-
-#
-# def adjust(img, brightness=-100, contrast=30):
-#     res = np.copy(img)
-#     res = np.int16(res)
-#     res = res * (contrast / 127 + 1) - contrast + brightness
-#     res = np.clip(res, 0, 255)
-#     res = np.uint8(res)
-#     return res
 
 
 def rotate(img, angle=5.0):
@@ -78,7 +63,6 @@ def generator(samples, sample_dir='.', batch_size=32):
                 img_center = cv2.imread(os.path.join(sample_dir, 'IMG',
                                                      batch_sample[0].split(os.sep)[-1]))
                 images.append(img_center)
-
                 steering_center = float(batch_sample[3])
                 correction = 0.20
                 angles.append(steering_center)
@@ -88,11 +72,6 @@ def generator(samples, sample_dir='.', batch_size=32):
                 images.append(image_flipped)
                 measurement_flipped = -steering_center
                 angles.append(measurement_flipped)
-
-                # yuv
-                # image_yuv = to_yuv(img_center)
-                # images.append(image_yuv)
-                # angles.append(steering_center)
 
                 # left, right cameras
                 img_left = cv2.imread(os.path.join(sample_dir, 'IMG',
@@ -107,32 +86,13 @@ def generator(samples, sample_dir='.', batch_size=32):
                 images.append(img_right)
                 angles.append(steering_right)
 
+                # brightness adjustments
                 for img, angle in [(img_center, steering_center), (img_left, steering_left), (img_right, steering_right)]:
                     for k in range(10):
                         img_adjusted = brightness(img, value=np.random.uniform(low=0.2, high=1.0))
                         images.append(img_adjusted)
                         angles.append(angle)
 
-                # for brightness, contrast in [(-50, 80), (-50, 30), (50, 30), (-100, 30)]:
-                #     for img, angle in [(img_center, steering_center), (img_left, steering_left), (img_right, steering_right)]:
-                #         img_adjusted = adjust(img, brightness=brightness, contrast=contrast)
-                #         images.append(img_adjusted)
-                #         angles.append(angle)
-
-                #
-                # for rot_angle in [-2.5, 2.5]:
-                #     for img, angle in [(img_center, steering_center)]:
-                #         img_rotated = rotate(img, angle=rot_angle)
-                #         images.append(img_rotated)
-                #         angles.append(angle)
-                #
-                # for scale_factor in [1.1, 1.2, 1.3]:
-                #     for img, angle in [(img_center, steering_center)]:
-                #         img_scaled = rescale(img, scale=scale_factor)
-                #         images.append(img_scaled)
-                #         angles.append(angle)
-
-            # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
             yield shuffle(X_train, y_train)
@@ -147,7 +107,6 @@ def custom(train_samples, validation_samples, train_generator, validation_genera
     model.add(Conv2D(48, (5, 5), activation="relu", strides=(2, 2)))
     model.add(Conv2D(64, (3, 3), activation="relu"))
     model.add(Conv2D(64, (3, 3), activation="relu"))
-    #model.add(Dropout(0.5))
     model.add(Flatten())
     model.add(Dense(100))
     model.add(Dropout(0.8))
@@ -157,8 +116,6 @@ def custom(train_samples, validation_samples, train_generator, validation_genera
     model.add(Dense(1))
 
     model.compile(loss='mse', optimizer='adam')
-    #model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator,
-    # nb_val_samples=len(validation_samples), nb_epoch=2)
     model.fit_generator(train_generator, verbose=1, validation_data=validation_generator,
                         epochs=1, steps_per_epoch=len(train_samples) / batch_size,
                         validation_steps=len(validation_samples) / batch_size)
@@ -166,6 +123,12 @@ def custom(train_samples, validation_samples, train_generator, validation_genera
 
 
 def main():
+    # adjusting tf memory
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.8
+    KTF.set_session(tf.Session(config=config))
+
     sample_dir = 'data/dataset1'
     samples = load_sample(sample_dir)
 
