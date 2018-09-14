@@ -8,16 +8,10 @@ from sklearn.utils import shuffle
 from keras.models import Sequential
 from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D
 from keras.layers.convolutional import Conv2D
-from skimage import transform
+import matplotlib.pyplot as plt
 
-# snippet start
 import tensorflow as tf
 import keras.backend.tensorflow_backend as KTF
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-config.gpu_options.per_process_gpu_memory_fraction = 0.8
-KTF.set_session(tf.Session(config=config))
-# snippet end
 
 
 def adjust_brightness(img, value=1.0):
@@ -33,24 +27,6 @@ def adjust(img, brightness=-100, contrast=30):
     res = res * (contrast / 127 + 1) - contrast + brightness
     res = np.clip(res, 0, 255)
     res = np.uint8(res)
-    return res
-
-
-def rotate(img, angle=5.0):
-    res = transform.rotate(img, angle=angle, resize=False, mode='edge')
-    res *= 255
-    return res
-
-
-def rescale(img, scale=1.0):
-    res = transform.rescale(img, scale=scale, mode='constant')
-    res = res[0:160, 0:320]
-    res *= 255
-    return res
-
-
-def to_yuv(img):
-    res = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
     return res
 
 
@@ -79,7 +55,7 @@ def generator(samples, sample_dir='.', batch_size=32):
                                                      batch_sample[0].split(os.sep)[-1]))
                 img_center = cv2.cvtColor(img_center, cv2.COLOR_BGR2RGB)
                 images.append(img_center)
-                
+
                 steering_center = float(batch_sample[3])
                 correction = 0.20
                 angles.append(steering_center)
@@ -121,26 +97,13 @@ def generator(samples, sample_dir='.', batch_size=32):
                     images.append(img_adjusted)
                     angles.append(angle)
 
-                #
-                # for rot_angle in [-2.5, 2.5]:
-                #     for img, angle in [(img_center, steering_center)]:
-                #         img_rotated = rotate(img, angle=rot_angle)
-                #         images.append(img_rotated)
-                #         angles.append(angle)
-                #
-                # for scale_factor in [1.1, 1.2, 1.3]:
-                #     for img, angle in [(img_center, steering_center)]:
-                #         img_scaled = rescale(img, scale=scale_factor)
-                #         images.append(img_scaled)
-                #         angles.append(angle)
-
             # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
             yield shuffle(X_train, y_train)
 
 
-def custom(train_samples, validation_samples, train_generator, validation_generator, batch_size=32):
+def network(train_samples, validation_samples, train_generator, validation_generator, batch_size=32):
     model = Sequential()
     model.add(Lambda(lambda x: x / 127.5 - 0.5, input_shape=(160, 320, 3)))
     model.add(Cropping2D(cropping=((70, 25), (0, 0)), input_shape=(160, 320, 3)))
@@ -151,30 +114,79 @@ def custom(train_samples, validation_samples, train_generator, validation_genera
     model.add(Conv2D(64, (3, 3), activation="relu"))
     model.add(Flatten())
     model.add(Dense(100))
-    model.add(Dropout(0.8))
+    model.add(Dropout(0.5))
     model.add(Dense(50))
-    model.add(Dropout(0.9))
+    model.add(Dropout(0.5))
     model.add(Dense(10))
     model.add(Dense(1))
+    model.compile(loss='mse', optimizer='adam', metrics=['mse', 'accuracy'])
 
-    model.compile(loss='mse', optimizer='adam')
+    print(model.summary())
+
     #model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator,
     # nb_val_samples=len(validation_samples), nb_epoch=2)
-    model.fit_generator(train_generator, verbose=1, validation_data=validation_generator,
-                        epochs=2, steps_per_epoch=len(train_samples) / batch_size,
+    history = model.fit_generator(train_generator, verbose=1, validation_data=validation_generator,
+                        epochs=3, steps_per_epoch=len(train_samples) / batch_size,
                         validation_steps=len(validation_samples) / batch_size)
     model.save('model.h5')
+    return history
+
+
+def plot_distribution(samples):
+    fig = plt.figure()
+    angles = [25 * float(sample[3]) for sample in samples]
+    hist, bin_edges = (np.histogram(angles, bins=[a for a in range(-25, 26, 1)]))
+    plt.bar(bin_edges[:-1], hist, width=1)
+    plt.xlim(min(bin_edges), max(bin_edges))
+    plt.xticks([a for a in range(-26, 27, 4)])
+    #plt.show()
+    fig.savefig('examples/samples_distribution.png')
+
+
+def plot_loss(history):
+    fig = plt.figure()
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    #plt.show()
+    fig.savefig('examples/model_loss.png')
+
+
+def plot_accuracy(history):
+    fig = plt.figure()
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    #plt.show()
+    fig.savefig('examples/model_accuracy.png')
 
 
 def main():
-    sample_dir = 'data/dataset1'
+    # gpu memory settings
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 0.8
+    KTF.set_session(tf.Session(config=config))
+
+    sample_dir = 'data/dataset2'
     samples = load_sample(sample_dir)
 
     train_samples, validation_samples = train_test_split(samples, test_size=0.2)
     batch_size = 16
     train_generator = generator(train_samples, batch_size=batch_size, sample_dir=sample_dir)
     validation_generator = generator(validation_samples, batch_size=batch_size, sample_dir=sample_dir)
-    custom(train_samples, validation_samples, train_generator, validation_generator, batch_size=batch_size)
+    history = network(train_samples, validation_samples, train_generator, validation_generator, batch_size=batch_size)
+
+    plot_distribution(samples)
+    #print(history.history.keys())
+    plot_loss(history)
+    plot_accuracy(history)
 
 
 if __name__ == '__main__':
