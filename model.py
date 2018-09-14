@@ -8,16 +8,50 @@ from sklearn.utils import shuffle
 from keras.models import Sequential
 from keras.layers import Flatten, Dense, Lambda, Dropout, Cropping2D
 from keras.layers.convolutional import Conv2D
+from skimage import transform
 
+# snippet start
 import tensorflow as tf
 import keras.backend.tensorflow_backend as KTF
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+config.gpu_options.per_process_gpu_memory_fraction = 0.8
+KTF.set_session(tf.Session(config=config))
+# snippet end
 
 
-def brightness(img, value=1.0):
+def adjust_brightness(img, value=1.0):
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     hsv[:, :, 2] = hsv[:, :, 2] * value
     rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
     return rgb
+
+
+def adjust(img, brightness=-100, contrast=30):
+    res = np.copy(img)
+    res = np.int16(res)
+    res = res * (contrast / 127 + 1) - contrast + brightness
+    res = np.clip(res, 0, 255)
+    res = np.uint8(res)
+    return res
+
+
+def rotate(img, angle=5.0):
+    res = transform.rotate(img, angle=angle, resize=False, mode='edge')
+    res *= 255
+    return res
+
+
+def rescale(img, scale=1.0):
+    res = transform.rescale(img, scale=scale, mode='constant')
+    res = res[0:160, 0:320]
+    res *= 255
+    return res
+
+
+def to_yuv(img):
+    res = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+    return res
 
 
 def load_sample(sample_dir):
@@ -43,7 +77,9 @@ def generator(samples, sample_dir='.', batch_size=32):
             for batch_sample in batch_samples:
                 img_center = cv2.imread(os.path.join(sample_dir, 'IMG',
                                                      batch_sample[0].split(os.sep)[-1]))
+                img_center = cv2.cvtColor(img_center, cv2.COLOR_BGR2RGB)
                 images.append(img_center)
+                
                 steering_center = float(batch_sample[3])
                 correction = 0.20
                 angles.append(steering_center)
@@ -57,23 +93,48 @@ def generator(samples, sample_dir='.', batch_size=32):
                 # left, right cameras
                 img_left = cv2.imread(os.path.join(sample_dir, 'IMG',
                                                    batch_sample[1].split(os.sep)[-1]))
+                img_left = cv2.cvtColor(img_left, cv2.COLOR_BGR2RGB)
                 steering_left = steering_center + correction
                 images.append(img_left)
                 angles.append(steering_left)
 
                 img_right = cv2.imread(os.path.join(sample_dir, 'IMG',
                                                     batch_sample[2].split(os.sep)[-1]))
+                img_right = cv2.cvtColor(img_right, cv2.COLOR_BGR2RGB)
                 steering_right = steering_center - correction
                 images.append(img_right)
                 angles.append(steering_right)
 
-                # brightness adjustments
-                for img, angle in [(img_center, steering_center), (img_left, steering_left), (img_right, steering_right)]:
-                    for k in range(10):
-                        img_adjusted = brightness(img, value=np.random.uniform(low=0.2, high=1.0))
-                        images.append(img_adjusted)
-                        angles.append(angle)
+                for img, angle in [(img_center, steering_center),
+                                   (img_left, steering_left),
+                                   (img_right, steering_right)]:
+                    img_adjusted = adjust_brightness(img, value=np.random.uniform(low=0.2, high=1.0))
+                    images.append(img_adjusted)
+                    angles.append(angle)
 
+                for img, angle in [(img_center, steering_center),
+                                   (img_left, steering_left),
+                                   (img_right, steering_right)]:
+                    x1 = np.random.randint(low=-50, high=50)
+                    x2 = np.random.randint(low=30, high=80)
+                    img_adjusted = adjust(img, brightness=x1, contrast=x2)
+                    images.append(img_adjusted)
+                    angles.append(angle)
+
+                #
+                # for rot_angle in [-2.5, 2.5]:
+                #     for img, angle in [(img_center, steering_center)]:
+                #         img_rotated = rotate(img, angle=rot_angle)
+                #         images.append(img_rotated)
+                #         angles.append(angle)
+                #
+                # for scale_factor in [1.1, 1.2, 1.3]:
+                #     for img, angle in [(img_center, steering_center)]:
+                #         img_scaled = rescale(img, scale=scale_factor)
+                #         images.append(img_scaled)
+                #         angles.append(angle)
+
+            # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
             yield shuffle(X_train, y_train)
@@ -97,19 +158,15 @@ def custom(train_samples, validation_samples, train_generator, validation_genera
     model.add(Dense(1))
 
     model.compile(loss='mse', optimizer='adam')
+    #model.fit_generator(train_generator, samples_per_epoch=len(train_samples), validation_data=validation_generator,
+    # nb_val_samples=len(validation_samples), nb_epoch=2)
     model.fit_generator(train_generator, verbose=1, validation_data=validation_generator,
-                        epochs=1, steps_per_epoch=len(train_samples) / batch_size,
+                        epochs=2, steps_per_epoch=len(train_samples) / batch_size,
                         validation_steps=len(validation_samples) / batch_size)
     model.save('model.h5')
 
 
 def main():
-    # adjusting tf memory
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = 0.8
-    KTF.set_session(tf.Session(config=config))
-
     sample_dir = 'data/dataset1'
     samples = load_sample(sample_dir)
 
