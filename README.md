@@ -11,19 +11,25 @@ The goals/steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/placeholder.png "Model Visualization"
-[image2]: ./examples/placeholder.png "Grayscaling"
-[image3]: ./examples/placeholder_small.png "Recovery Image"
-[image4]: ./examples/placeholder_small.png "Recovery Image"
-[image5]: ./examples/placeholder_small.png "Recovery Image"
-[image6]: ./examples/placeholder_small.png "Normal Image"
-[image7]: ./examples/placeholder_small.png "Flipped Image"
+[image1]: ./examples/001_original.jpg "Image center"
+[image2]: ./examples/002_after_flip.jpg "Image after flip"
+[image3]: ./examples/003_after_brightness_contrast.jpg "Brightness and contrast adjustments"
+[image4]: ./examples/004_after_brightness_contrast.jpg "Brightness and contrast adjustments"
+[image5]: ./examples/005_samples_distribution.png "Training set distribution"
+[image6]: ./examples/006_model_accuracy.png "Model accuracy"
+[image7]: ./examples/007_model_loss.png "Model loss"
+[image8]: ./examples/008_after_crop.jpg "After crop"
+[image9]: ./examples/010_img_left.jpg "Image left"
+[image10]: ./examples/009_img_center.jpg "Image center"
+[image11]: ./examples/011_img_right.jpg "Image right"
+
 
 My project includes the following files:
 * model.py containing the script to create and train the model
 * drive.py for driving the car in autonomous mode
 * model.h5 containing a trained convolution neural network 
 * README.md summarizing the results
+* video.mp4 a video recording of the vehicle driving autonomously
 
 Using the Udacity provided simulator and my drive.py file, the car can be driven autonomously around the track by executing 
 ```sh
@@ -54,8 +60,8 @@ My model consist of the following layers:
 | RELU					|												|
 | Convolution 3x3	    | output 1x33x64                                |
 | RELU					|												|
-| Flatten	      	    | input 1x33x64, output 2,112 				    |
-| Fully connected		| input 2,112, output 100       			    |
+| Flatten	      	    | input 1x33x64, output 2112 				    |
+| Fully connected		| input 2112, output 100       			    |
 | Dropout				| Keep probability 0.5						    |
 | Fully connected		| input 100, output 50       					|
 | Dropout				| Keep probability 0.5						    |
@@ -64,11 +70,10 @@ My model consist of the following layers:
 
 Some important characteristics of the model:
 
-* The data is normalized using the Keras lambda function ```x / 127.5 - 0.5``` (code line ...). 
-* The model includes RELU layers to introduce nonlinearity (code line ...). 
-* The model contains two dropout layers in order to reduce overfitting (code line ...).
-* The model used an adam optimizer, so the learning rate was not tuned manually (code line ...).
-* The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
+* The data is normalized using the Keras lambda function ```x / 127.5 - 0.5``` 
+* The model includes RELU layers to introduce nonlinearity 
+* The model contains two dropout layers in order to reduce overfitting
+* The model used an adam optimizer, so the learning rate was not tuned manually
 
 Model hyper-parameters:
 
@@ -76,6 +81,8 @@ Model hyper-parameters:
 * Batch Size: 16
 
 Using the udacity simulator, I collected a total of 109,900 images. Picture below shows the training set distribution:
+
+![alt text][image5]
 
 My data collection strategies were the following:
 
@@ -99,19 +106,47 @@ For details about how I created the training data, see the next section.
 
 #### 1. Solution Design Approach
 
-I took as starting point the network described in the NVIDIA paper End to End Learning for Self-Driving Cars.
-
-The overall strategy for deriving a model architecture was to ...
-
-My first step was to use a convolution neural network model similar to the ... I thought this model might be 
-appropriate because ...
+I took as starting point the network described in the NVIDIA paper End to End Learning for Self-Driving Cars. Since this 
+model was designed specifically for the task at hand, I thought was an excellent starting point.
 
 In order to gauge how well the model was working, I split my image and steering angle data into a training and 
 validation set. I found that my first model had a low mean squared error on the training set but a high mean 
 squared error on the validation set. This implied that the model was overfitting. 
 
-To combat the overfitting, I modified the model so that ...
+To combat the overfitting, I added two Dropout layers with a keep probability of 0.5, this allow the model to generalized, thus not
+overfitting the dataset.
 
-Then I ... 
+After testing the model on track 1, there were a few spots where the vehicle fell off the track, to improve 
+the driving behavior in these cases, I augmented the training set as follow:
 
-The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle 
+* Brightness and contrast adjustments:
+
+![alt text][image1] ![alt text][image3] ![alt text][image4]
+
+* Horizontally flipping the images, and inverting the steering angle: 
+
+![alt text][image1] ![alt text][image2]  
+
+* Cropping the region of interest, so the classifier could focus on the relevant part of the image:
+
+![alt text][image1] ![alt text][image8] 
+
+* Making use of the both left and right images, and adding the appropriate steering correction angle:
+
+![alt text][image9] ![alt text][image10] ![alt text][image11] 
+
+As I mentioned before, after the collection process, I had 109,900 number of data points. after the augmenting step
+I ended up with around 769,300 images, neat!
+
+I finally randomly shuffled the data set and put 2% of the data into a validation set.
+
+I used this training data for training the model. The validation set helped determine if the model was over or under 
+fitting. The ideal number of epochs was between around 3, after that amount the improvements of the classifier were neglectable. 
+I was able to tell the classifier was neither overfitting nor underfitting the training set by observing the following 
+model loss and accuracy graph:
+
+![alt text][image7]  
+
+![alt text][image6]
+
+

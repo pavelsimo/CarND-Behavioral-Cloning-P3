@@ -140,7 +140,7 @@ def plot_distribution(samples):
     plt.xlim(min(bin_edges), max(bin_edges))
     plt.xticks([a for a in range(-26, 27, 4)])
     #plt.show()
-    fig.savefig('examples/samples_distribution.png')
+    fig.savefig('examples/005_samples_distribution.png')
 
 
 def plot_loss(history):
@@ -150,9 +150,9 @@ def plot_loss(history):
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['train', 'val'], loc='upper left')
     #plt.show()
-    fig.savefig('examples/model_loss.png')
+    fig.savefig('examples/007_model_loss.png')
 
 
 def plot_accuracy(history):
@@ -162,9 +162,9 @@ def plot_accuracy(history):
     plt.title('model accuracy')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['train', 'val'], loc='upper left')
     #plt.show()
-    fig.savefig('examples/model_accuracy.png')
+    fig.savefig('examples/006_model_accuracy.png')
 
 
 def main():
